@@ -1,0 +1,59 @@
+name: Build scipy wheel with numpy main on ubuntu
+
+on:
+  workflow_dispatch:
+
+permissions:
+   contents: read  # to fetch code (actions/checkout)
+
+jobs:
+  upload_new_pyproject:
+    name: Checkout repo and upload new pyproject
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/upload-artifact@v3
+        with:
+          name: pyproject
+          path: ./scipy-pyproject.toml
+
+  build_wheel:
+    name: Build scipy wheel
+    runs-on: ubuntu-22.04
+    needs: upload_new_pyproject
+    steps:
+      - name: Checkout scipy
+        uses: actions/checkout@v3
+        with:
+          repository: lysnikolaou/scipy
+          ref: abeff92107ed9398aedac049126d7e37f4bd6473
+          submodules: true
+          fetch-depth: 0
+          path: scipy
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Download new pyproject.toml
+        uses: actions/download-artifact@v3
+        with:
+          name: pyproject
+
+      - name: Move pyproject.toml
+        run: mv scipy-pyproject.toml pyproject.toml
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.12.1
+        env:
+          CIBW_BUILD: cp310-manylinux*
+          CIBW_ARCHS: x86_64
+          CIBW_TEST_SKIP: "*"
+          CIBW_ENVIRONMENT_PASS_LINUX: RUNNER_OS
+          CIBW_PRERELEASE_PYTHONS: True
+          CIBW_ENVIRONMENT: PIP_EXTRA_INDEX_URL=https://pypi.anaconda.org/scientific-python-nightly-wheels/simple PIP_PRE=1
+
+      - uses: actions/upload-artifact@v3
+        with:
+          path: ./wheelhouse/*.whl
